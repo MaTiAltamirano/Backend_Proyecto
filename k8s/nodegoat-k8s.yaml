@@ -1,0 +1,71 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: nodegoat-lab
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: mongo
+  namespace: nodegoat-lab
+spec:
+  ports:
+    - port: 27017
+  selector:
+    app: mongo
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: mongo
+  namespace: nodegoat-lab
+spec:
+  selector:
+    matchLabels:
+      app: mongo
+  template:
+    metadata:
+      labels:
+        app: mongo
+    spec:
+      containers:
+      - name: mongo
+        image: mongo:4.4
+        ports:
+        - containerPort: 27017
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: nodegoat-web
+  namespace: nodegoat-lab
+spec:
+  selector:
+    matchLabels:
+      app: nodegoat
+  template:
+    metadata:
+      labels:
+        app: nodegoat
+    spec:
+      containers:
+      - name: web
+        image: icorrales/nodegoat:latest
+        env:
+        - name: MONGODB_URI
+          value: "mongodb://mongo:27017/nodegoat"
+        ports:
+        - containerPort: 4000
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: nodegoat-service
+  namespace: nodegoat-lab
+spec:
+  type: ClusterIP
+  ports:
+    - port: 80
+      targetPort: 4000
+  selector:
+    app: nodegoat

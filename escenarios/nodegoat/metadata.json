@@ -1,0 +1,9 @@
+{
+  "id": "nodegoat",
+  "nombre": "NodeGoat",
+  "descripcion": "Aplicación vulnerable OWASP NodeGoat",
+  "puerto": 4000,
+  "tipo": "web",
+  "dificultad": "media",
+  "imagen": "nirocr/nodegoat"
+}

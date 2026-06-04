@@ -1,0 +1,9 @@
+{
+    "id": "struts2",
+    "slug": "struts2",
+    "nombre": "Apache Struts2 S2-045",
+    "descripcion": "Laboratorio vulnerable CVE-2017-5638",
+    "puerto": 8080,
+    "serviceName": "struts2-service",
+    "mainPodLabel": "struts2"
+}
