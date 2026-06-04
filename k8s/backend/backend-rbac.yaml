@@ -1,0 +1,46 @@
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: backend-sa
+  namespace: default
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: backend-k8s-manager
+rules:
+  - apiGroups: [""]
+    resources:
+      - namespaces
+      - services
+      - pods
+      - pods/log
+    verbs:
+      - get
+      - list
+      - create
+      - delete
+      - watch
+
+  - apiGroups: ["apps"]
+    resources:
+      - deployments
+    verbs:
+      - get
+      - list
+      - create
+      - delete
+      - watch
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: backend-k8s-manager-binding
+subjects:
+  - kind: ServiceAccount
+    name: backend-sa
+    namespace: default
+roleRef:
+  kind: ClusterRole
+  name: backend-k8s-manager
+  apiGroup: rbac.authorization.k8s.io

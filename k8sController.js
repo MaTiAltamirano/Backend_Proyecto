@@ -2,7 +2,14 @@ const k8s = require('@kubernetes/client-node');
 const { cargarEscenario } = require('./services/scenarioServices');
 
 const kc = new k8s.KubeConfig();
-kc.loadFromDefault(); //carga archivo ~/.kube/config 
+//permite backend dentro de kubernetes y local
+if (process.env.KUBERNETES_SERVICE_HOST){
+    console.log("Cargando configuracion Kubernetes desde el clúster");
+    kc.loadFromCluster();
+}else {
+    console.log("Cargando configuración Kubernetes desde kubeconfig local");
+    kc.loadFromDefault();
+}
 
 const k8sCoreApi = kc.makeApiClient(k8s.CoreV1Api);
 const k8sAppsApi = kc.makeApiClient(k8s.AppsV1Api);

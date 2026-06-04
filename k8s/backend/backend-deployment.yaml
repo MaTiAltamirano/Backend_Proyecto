@@ -1,0 +1,46 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: backend-proyecto
+  namespace: default
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: backend-proyecto
+  template:
+    metadata:
+      labels:
+        app: backend-proyecto
+    spec:
+      serviceAccountName: backend-sa
+      containers:
+        - name: backend-proyecto
+          image: backend-proyecto:latest
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 3000
+          env:
+            - name: DB_USER
+              value: "postgres"
+            - name: DB_HOST
+              value: "host.docker.internal"
+            - name: DB_NAME
+              value: "plataforma_ctf"
+            - name: DB_PASSWORD
+              value: "abreteSesamo"
+            - name: DB_PORT
+              value: "5432"
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: backend-service
+  namespace: default
+spec:
+  selector:
+    app: backend-proyecto
+  ports:
+    - port: 3000
+      targetPort: 3000
+  type: ClusterIP
