@@ -60,17 +60,84 @@ db.connect((err) => {
     }
 });
 
+//CAMBIAR O REINICIAR LABORATORIO ACTIVO EN BD
+const registrarLaboratorioActivo = async (scenarioId, userId) => {
+    const escenarioResult = await db.query(
+        `
+        SELECT id_escenario
+        FROM escenario
+        WHERE slug = $1
+        `,
+        [scenarioId]
+    );
+
+    if (escenarioResult.rows.length === 0) {
+        console.log("Escenario no encontrado en BD:", scenarioId);
+        return;
+    }
+
+    const idEscenario = escenarioResult.rows[0].id_escenario;
+    const namespace = `lab-user${userId}`;
+
+    const existente = await db.query(
+        `
+        SELECT id_lab
+        FROM laboratorio_activo
+        WHERE id_usuario = $1
+          AND id_escenario = $2
+          AND estado IN ('activo', 'iniciado', 'listo')
+        ORDER BY fecha_inicio DESC
+        LIMIT 1
+        `,
+        [userId, idEscenario]
+    );
+
+    if (existente.rows.length > 0) {
+        await db.query(
+            `
+            UPDATE laboratorio_activo
+            SET estado = 'activo',
+                namespace = $1,
+                fecha_inicio = CURRENT_TIMESTAMP,
+                fecha_fin = NULL,
+                tiempo_total_segundos = 0,
+                updated_at = CURRENT_TIMESTAMP
+            WHERE id_lab = $2
+            `,
+            [namespace, existente.rows[0].id_lab]
+        );
+
+        return;
+    }
+
+    await db.query(
+        `
+        INSERT INTO laboratorio_activo (
+            id_usuario,
+            id_escenario,
+            namespace,
+            estado,
+            fecha_inicio
+        )
+        VALUES ($1, $2, $3, 'activo', CURRENT_TIMESTAMP)
+        `,
+        [userId, idEscenario, namespace]
+    );
+};
+
 //IMPORTAR RUTAS
 const desafiosRoutes = require("./routes/desafios");
 const usuariosRoutes = require("./routes/usuarios");
 const respuestasRoutes = require("./routes/respuestas");
 const progresosRoutes = require("./routes/progresos");
+const objetivosRoutes = require("./routes/objetivos");
 
 //USAR RUTAS
 app.use("/desafios", desafiosRoutes);
 app.use("/usuarios", usuariosRoutes);
 app.use("/respuestas", respuestasRoutes);
 app.use("/progresos", progresosRoutes);
+app.use("/objetivos", objetivosRoutes);
  
 //RUTA PARA INICIAR ESCENARIO
 app.post("/lanzar-escenario", async (req, res) => {
@@ -98,6 +165,7 @@ app.post("/lanzar-escenario", async (req, res) => {
         console.log("Llamando iniciarEscenarioK8s...");
 
         const mensaje = await iniciarEscenarioK8s(scenarioId, userId);
+        await registrarLaboratorioActivo(scenarioId, userId);
 
         console.log("RESULTADO:");
         console.log(mensaje);
@@ -131,6 +199,22 @@ app.post("/detener-escenario", async (req, res) => {
         }
 
         const mensaje = await detenerEscenarioK8s(scenarioId, userId);
+        // Actualizar el estado en la base de datos a "detenido" y calcular el tiempo total
+        await db.query(
+            `
+            UPDATE laboratorio_activo la
+            SET estado = 'detenido',
+                fecha_fin = CURRENT_TIMESTAMP,
+                tiempo_total_segundos = EXTRACT(EPOCH FROM (CURRENT_TIMESTAMP - la.fecha_inicio))::integer,
+                updated_at = CURRENT_TIMESTAMP
+            FROM escenario e
+            WHERE la.id_escenario = e.id_escenario
+                AND e.slug = $1
+                AND la.id_usuario = $2
+                AND la.estado IN ('activo', 'iniciado', 'listo')
+            `,
+            [scenarioId, userId]
+        );
 
         res.json({
             status: "success",
