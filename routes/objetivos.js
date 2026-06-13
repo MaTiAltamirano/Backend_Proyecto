@@ -44,6 +44,7 @@ const validarRespuesta = (objetivo, respuestaUsuario) => {
 
     switch (objetivo.tipo_validacion) {
         case "texto_exacto":
+        case "texto_exacta":
             return respuestaOriginal === objetivo.respuesta_esperada;
 
         case "flag":
@@ -78,10 +79,6 @@ const validarRespuesta = (objetivo, respuestaUsuario) => {
     }
 };
 
-// =====================================================
-// GET /objetivos/:scenarioId?userId=1
-// Lista objetivos del escenario + progreso del usuario
-// =====================================================
 router.get("/:scenarioId", async (req, res) => {
     try {
         const { scenarioId } = req.params;
@@ -96,10 +93,19 @@ router.get("/:scenarioId", async (req, res) => {
 
         const escenarioResult = await db.query(
             `
-            SELECT id_escenario, slug, titulo, puntaje_total
+            SELECT 
+                id_escenario,
+                slug,
+                titulo,
+                puntaje_total,
+                objetivo_general,
+                aprendizajes,
+                herramientas_recomendadas,
+                conocimientos_previos,
+                resumen_final
             FROM escenario
             WHERE slug = $1
-              AND activo = true
+            AND activo = true
             `,
             [scenarioId]
         );
@@ -124,6 +130,9 @@ router.get("/:scenarioId", async (req, res) => {
                 o.explicacion,
                 o.instrucciones,
                 o.pista,
+                o.solucion,
+                o.comando_copiable,
+                o.mostrar_solucion,
                 o.tipo_objetivo,
                 o.requiere_respuesta,
                 o.label_respuesta,
@@ -195,10 +204,6 @@ router.get("/:scenarioId", async (req, res) => {
     }
 });
 
-// =====================================================
-// POST /objetivos/validar
-// Valida respuesta de un objetivo
-// =====================================================
 router.post("/validar", async (req, res) => {
     try {
         const {

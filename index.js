@@ -35,6 +35,11 @@ app.use('/escenario/:scenarioId/:userId', (req, res, next) => {
         pathRewrite: {
             [`^/escenario/${scenarioId}/${userId}`]: '', // lipmia la ruta
         },
+        onProxyRes: (proxyRes) => {
+            delete proxyRes.headers["x-frame-options"];
+            delete proxyRes.headers["content-security-policy"];
+            delete proxyRes.headers["content-security-policy-report-only"];
+        },
         onError: (err, req, res) => {
             console.error("Error del proxy:", err.message);
             res.status(500).send("Escenario no disponible");
