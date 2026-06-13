@@ -22,27 +22,6 @@ Registro de progreso y puntaje.
 Despliegue de laboratorios vulnerables en Kubernetes.
 Detención de escenarios activos.
 Proxy hacia los laboratorios desplegados en Kubernetes.
-Estructura general
-Backend_Proyecto/
-├── escenarios/
-│   └── struts2/
-│       ├── deployment.js
-│       ├── service.js
-│       ├── metadata.json
-│       └── flags.js
-├── routes/
-│   ├── desafios.js
-│   ├── objetivos.js
-│   ├── usuarios.js
-│   ├── progresos.js
-│   └── respuestas.js
-├── services/
-│   └── scenarioServices.js
-├── k8sController.js
-├── index.js
-├── Dockerfile
-└── package.json
-Variables de entorno
 
 El backend utiliza las siguientes variables para conectarse a PostgreSQL:
 
