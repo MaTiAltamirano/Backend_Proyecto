@@ -268,6 +268,31 @@ const detenerEscenarioK8s = async (scenarioId, userId) => {
     }
 };
 
+const verificarAplicacionHttp = async (escenario, nsName) => {
+    const serviceName = escenario.metadata?.serviceName;
+    const puerto = escenario.metadata?.puerto;
+
+    if (!serviceName || !puerto) {
+        console.log("El escenario no tiene serviceName o puerto configurado");
+        return false;
+    }
+
+    const targetUrl = `http://${serviceName}.${nsName}.svc.cluster.local:${puerto}`;
+
+    try {
+        const respuesta = await fetch(targetUrl, {
+            signal: AbortSignal.timeout(3000)
+        });
+
+        console.log("Verificación HTTP escenario:", targetUrl, "STATUS:", respuesta.status);
+
+        return respuesta.ok;
+
+    } catch (error) {
+        console.log("Aplicación del escenario todavía no responde:", error.message);
+        return false;
+    }
+};
 
 const verificarEscenarioK8s = async (scenarioId, userId) => {
     const escenario = cargarEscenario(scenarioId);
@@ -330,9 +355,16 @@ const verificarEscenarioK8s = async (scenarioId, userId) => {
         const containersReady = podEscenario.status?.containerStatuses?.every(c => c.ready);
 
         if (phase === "Running" && containersReady){
+            const aplicacionLista = await verificarAplicacionHttp(escenario, nsName);
+            if (!aplicacionLista){
+                return {
+                    ready: false,
+                    status: "Iniciando aplicación..."
+                };
+            }
             return{
                 ready: true,
-                status: "Pod en ejecución"
+                status: "Escenario listo"
             };
         }
 

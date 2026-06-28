@@ -148,7 +148,8 @@ router.get("/:scenarioId", async (req, res) => {
                 p.tiempo_desde_inicio_segundos,
                 p.tiempo_fin
             FROM objetivo o
-            LEFT JOIN progreso_objetivo p
+            --consulta progreso temporal sin marcar el definitivo
+            LEFT JOIN progreso_objetivo_temporal p
                 ON p.id_objetivo = o.id_objetivo
                AND p.id_usuario = $2
             WHERE o.id_escenario = $1
@@ -256,7 +257,7 @@ router.post("/validar", async (req, res) => {
                     o.id_objetivo,
                     COALESCE(p.completado, false) AS completado
                 FROM objetivo o
-                LEFT JOIN progreso_objetivo p
+                LEFT JOIN progreso_objetivo_temporal p
                     ON p.id_objetivo = o.id_objetivo
                    AND p.id_usuario = $2
                 WHERE o.id_escenario = $1
@@ -283,7 +284,7 @@ router.post("/validar", async (req, res) => {
         const progresoExistente = await db.query(
             `
             SELECT *
-            FROM progreso_objetivo
+            FROM progreso_objetivo_temporal
             WHERE id_usuario = $1
               AND id_objetivo = $2
             `,
@@ -340,7 +341,7 @@ router.post("/validar", async (req, res) => {
 
         const progresoResult = await db.query(
             `
-            INSERT INTO progreso_objetivo (
+            INSERT INTO progreso_objetivo_temporal (
                 id_usuario,
                 id_escenario,
                 id_objetivo,
@@ -363,20 +364,20 @@ router.post("/validar", async (req, res) => {
             DO UPDATE SET
                 respuesta_usuario = EXCLUDED.respuesta_usuario,
                 correcto = EXCLUDED.correcto,
-                completado = progreso_objetivo.completado OR EXCLUDED.completado,
+                completado = progreso_objetivo_temporal.completado OR EXCLUDED.completado,
                 puntaje_obtenido = CASE
                     WHEN EXCLUDED.completado THEN EXCLUDED.puntaje_obtenido
-                    ELSE progreso_objetivo.puntaje_obtenido
+                    ELSE progreso_objetivo_temporal.puntaje_obtenido
                 END,
-                intentos = progreso_objetivo.intentos + 1,
+                intentos = progreso_objetivo_temporal.intentos + 1,
                 ultimo_intento = CURRENT_TIMESTAMP,
                 tiempo_fin = CASE
                     WHEN EXCLUDED.completado THEN CURRENT_TIMESTAMP
-                    ELSE progreso_objetivo.tiempo_fin
+                    ELSE progreso_objetivo_temporal.tiempo_fin
                 END,
                 tiempo_desde_inicio_segundos = CASE
                     WHEN EXCLUDED.completado THEN EXCLUDED.tiempo_desde_inicio_segundos
-                    ELSE progreso_objetivo.tiempo_desde_inicio_segundos
+                    ELSE progreso_objetivo_temporal.tiempo_desde_inicio_segundos
                 END,
                 updated_at = CURRENT_TIMESTAMP
             RETURNING *
@@ -406,6 +407,53 @@ router.post("/validar", async (req, res) => {
         );
 
         if (correcto && objetivo.es_final) {
+            //se pasa objetivo temporal a definitivo
+            await db.query(
+                `
+                INSERT INTO progreso_objetivo (
+                    id_usuario,
+                    id_escenario,
+                    id_objetivo,
+                    completado,
+                    correcto,
+                    respuesta_usuario,
+                    puntaje_obtenido,
+                    intentos,
+                    tiempo_fin,
+                    ultimo_intento,
+                    tiempo_desde_inicio_segundos
+                )
+                SELECT
+                    id_usuario,
+                    id_escenario,
+                    id_objetivo,
+                    completado,
+                    correcto,
+                    respuesta_usuario,
+                    puntaje_obtenido,
+                    intentos,
+                    tiempo_fin,
+                    ultimo_intento,
+                    tiempo_desde_inicio_segundos
+                FROM progreso_objetivo_temporal
+                WHERE id_usuario = $1
+                    AND id_escenario = $2
+                ON CONFLICT (id_usuario, id_objetivo)
+                DO UPDATE SET
+                    completado = EXCLUDED.completado,
+                    correcto = EXCLUDED.correcto,
+                    respuesta_usuario = EXCLUDED.respuesta_usuario,
+                    puntaje_obtenido = EXCLUDED.puntaje_obtenido,
+                    intentos = EXCLUDED.intentos,
+                    tiempo_fin = EXCLUDED.tiempo_fin,
+                    ultimo_intento = EXCLUDED.ultimo_intento,
+                    tiempo_desde_inicio_segundos = EXCLUDED.tiempo_desde_inicio_segundos,
+                    updated_at = CURRENT_TIMESTAMP
+                `,
+                [userId, objetivo.id_escenario]
+            );
+
+            //marco escenario como completo y guardo el tiempo
             await db.query(
                 `
                 UPDATE laboratorio_activo
@@ -416,6 +464,16 @@ router.post("/validar", async (req, res) => {
                 WHERE id_lab = $2
                 `,
                 [tiempoDesdeInicio, laboratorio.id_lab]
+            );
+
+            // limpio temporal
+            await db.query(
+                `
+                DELETE FROM progreso_objetivo_temporal
+                WHERE id_usuario = $1
+                AND id_escenario = $2
+                `,
+                [userId, objetivo.id_escenario]
             );
         }
 

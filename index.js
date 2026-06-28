@@ -84,6 +84,16 @@ const registrarLaboratorioActivo = async (scenarioId, userId) => {
     const idEscenario = escenarioResult.rows[0].id_escenario;
     const namespace = `lab-user${userId}`;
 
+    //borramos intento incompleto
+    await db.query(
+        `
+            DELETE FROM progreso_objetivo_temporal
+            WHERE id_usuario = $1
+            AND id_escenario = $2
+        `,
+        [userId, idEscenario]
+    );
+
     const existente = await db.query(
         `
         SELECT id_lab
@@ -219,6 +229,21 @@ app.post("/detener-escenario", async (req, res) => {
                 AND la.estado IN ('activo', 'iniciado', 'listo')
             `,
             [scenarioId, userId]
+        );
+
+        //elimina progreso de sesion actual
+        await db.query(
+            `
+            DELETE FROM progreso_objetivo_temporal
+            WHERE id_usuario = $1
+            AND id_escenario = (
+                SELECT id_escenario
+                FROM escenario
+                WHERE slug = $2
+                LIMIT 1
+            )
+            `,
+            [userId, scenarioId]
         );
 
         res.json({
