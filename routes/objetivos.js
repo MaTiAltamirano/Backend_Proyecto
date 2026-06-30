@@ -36,6 +36,11 @@ const obtenerRespuestasAceptadas = (objetivo) => {
 };
 
 const validarRespuesta = (objetivo, respuestaUsuario) => {
+
+    if (objetivo.requiere_respuesta === false){
+        return true;
+    }
+
     const respuestaOriginal = respuestaUsuario?.toString().trim() || "";
     const respuestaNormalizada = normalizarTexto(respuestaOriginal);
 
@@ -71,6 +76,7 @@ const validarRespuesta = (objetivo, respuestaUsuario) => {
                 respuesta.includes(respuestaNormalizada)
             );
 
+        case "manual":
         case "sin_validacion":
             return true;
 

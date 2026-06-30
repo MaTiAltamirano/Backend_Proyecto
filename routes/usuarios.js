@@ -180,12 +180,67 @@ router.put("/:id/perfil", async (req, res) => {
 });
 
 
-// ACTUALIZAR FOTO DE PERFIL
+/// ACTUALIZAR FOTO DE PERFIL
 router.put("/:id/foto", async (req, res) => {
     const { id } = req.params;
     const { foto_url } = req.body;
 
     try {
+        if (!foto_url || String(foto_url).trim() === "") {
+            const result = await db.query(
+                `
+                UPDATE usuario
+                SET foto_url = NULL
+                WHERE id_usuario = $1
+                  AND activo = true
+                RETURNING id_usuario, nombre, correo, foto_url, rol, fecha_registro
+                `,
+                [id]
+            );
+
+            if (result.rows.length === 0) {
+                return res.status(404).json({
+                    message: "Usuario no encontrado"
+                });
+            }
+
+            const usuario = result.rows[0];
+
+            return res.json({
+                message: "Foto eliminada correctamente",
+                user: {
+                    id: usuario.id_usuario,
+                    nombre: usuario.nombre,
+                    correo: usuario.correo,
+                    foto_url: usuario.foto_url,
+                    rol: usuario.rol,
+                    fecha_registro: usuario.fecha_registro
+                }
+            });
+        }
+
+        const fotoFinal = String(foto_url).trim();
+
+        // Acepta dos formatos
+        const esUrlImagen = /^https?:\/\/.+/i.test(fotoFinal);
+        const esBase64Imagen = /^data:image\/(png|jpg|jpeg|webp);base64,/i.test(fotoFinal);
+
+        if (!esUrlImagen && !esBase64Imagen) {
+            return res.status(400).json({
+                message: "Formato de imagen no válido. Debe ser una URL o una imagen seleccionada desde el computador."
+            });
+        }
+
+        // Límite de seguridad para evitar guardar datos excesivamente grandes.
+        const maxSizeMB = 8;
+        const maxLength = maxSizeMB * 1024 * 1024;
+
+        if (fotoFinal.length > maxLength) {
+            return res.status(400).json({
+                message: `La imagen es demasiado pesada. El máximo permitido es ${maxSizeMB} MB.`
+            });
+        }
+
         const result = await db.query(
             `
             UPDATE usuario
@@ -194,7 +249,7 @@ router.put("/:id/foto", async (req, res) => {
               AND activo = true
             RETURNING id_usuario, nombre, correo, foto_url, rol, fecha_registro
             `,
-            [foto_url || null, id]
+            [fotoFinal, id]
         );
 
         if (result.rows.length === 0) {
@@ -216,6 +271,7 @@ router.put("/:id/foto", async (req, res) => {
                 fecha_registro: usuario.fecha_registro
             }
         });
+
     } catch (error) {
         res.status(500).json({ error: error.message });
     }

@@ -14,7 +14,9 @@ const app = express();
 
 //Middleware
 app.use(cors());    
-app.use(express.json());
+app.use(express.json({ limit: "10mb" }));
+//permitimos formularios más grandes
+app.use(express.urlencoded({ limit: "10mb", extended: true }));
 
 // Proxy para redirigir tráfico a los escenarios en Kubernetes 
 app.use('/escenario/:scenarioId/:userId', (req, res, next) => {
@@ -46,6 +48,59 @@ app.use('/escenario/:scenarioId/:userId', (req, res, next) => {
         }
     })(req, res, next);
 });
+
+
+// ==========================================================
+// PARCHE ESPECÍFICO PARA STRUTS2
+// ==========================================================
+// La aplicación vulnerable Struts2 genera formularios que envían
+// peticiones POST a rutas absolutas.
+//
+// Este bloque intercepta SOLO esa ruta específica de Struts2,
+// identifica el usuario desde el header Referer y reenvía la petición
+// al servicio interno del laboratorio Struts2 correspondiente.
+// ==========================================================
+app.use(/^\/doUpload\.action(;.*)?$/, (req, res, next) => {
+    const referer = req.headers.referer || "";
+
+    // Busca una URL de origen:
+    const match = referer.match(/\/escenario\/struts2\/([^/]+)/);
+
+    if (!match) {
+        return res.status(400).send("No se pudo identificar el laboratorio Struts2 de origen");
+    }
+
+    const userId = match[1];
+
+    const escenario = cargarEscenario("struts2");
+
+    if (!escenario) {
+        return res.status(404).send("Escenario Struts2 no encontrado");
+    }
+
+    const targetUrl = `http://${escenario.metadata.serviceName}.lab-user${userId}.svc.cluster.local:${escenario.metadata.puerto}`;
+
+    console.log(`Redirigiendo acción de subida Struts2 a: ${targetUrl}${req.originalUrl}`);
+
+    createProxyMiddleware({
+        target: targetUrl,
+        changeOrigin: true,
+
+        onProxyRes: (proxyRes) => {
+            delete proxyRes.headers["x-frame-options"];
+            delete proxyRes.headers["content-security-policy"];
+            delete proxyRes.headers["content-security-policy-report-only"];
+        },
+
+        onError: (err, req, res) => {
+            console.error("Error en proxy específico Struts2:", err.message);
+            res.status(500).send("La acción de subida del escenario Struts2 no está disponible");
+        }
+    })(req, res, next);
+});
+
+//=============================================================
+//=============================================================
 
 
 //BASE DE DATOS
