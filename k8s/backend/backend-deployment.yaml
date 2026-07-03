@@ -28,7 +28,10 @@ spec:
             - name: DB_NAME
               value: "plataforma_ctf"
             - name: DB_PASSWORD
-              value: "abreteSesamo"
+              valueFrom:
+                secretKeyRef:
+                  name: backend-db-secret
+                  key: DB_PASSWORD
             - name: DB_PORT
               value: "5432"
 ---
